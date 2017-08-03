@@ -30,6 +30,7 @@ def cli():
     pass
 
 
+
 @cli.command()
 @click.option("--cluster")
 @click.option("--service")
@@ -37,25 +38,25 @@ def cli():
 @click.option("--image")
 def deploy(cluster, service, container, image):
     client = boto3.client("ecs")
-    container_definition = None
 
     response = get_current_task_definition(client, cluster, service)
-
-    for old_container_definition in response["taskDefinition"]["containerDefinitions"]:
-        if old_container_definition['name'] == container:
-            container_definition = old_container_definition.copy()
+    container_definition_to_modify = None
+    container_definitions = response["taskDefinition"]["containerDefinitions"]
+    for container_definition in container_definitions:
+        if container_definition['name'] == container:
+            container_definition_to_modify = container_definition
             break
 
-    if container_definition is None:
+    if container_definition_to_modify is None:
         raise ValueError('container not found')
 
-    container_definition["image"] = image
+    container_definition_to_modify["image"] = image
 
     with log_call("register task definition"):
         response = client.register_task_definition(
             family=response["taskDefinition"]["family"],
             volumes=response["taskDefinition"]["volumes"],
-            containerDefinitions=[container_definition],
+            containerDefinitions=container_definitions,
         )
     new_task_arn = response["taskDefinition"]["taskDefinitionArn"]
 
@@ -89,7 +90,6 @@ def rollback(cluster, service):
             service=service,
             taskDefinition=new_task_arn,
         )
-
 
 if __name__ == "__main__":
     cli()
