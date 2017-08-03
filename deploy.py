@@ -33,14 +33,22 @@ def cli():
 @cli.command()
 @click.option("--cluster")
 @click.option("--service")
+@click.option("--container")
 @click.option("--image")
-def deploy(cluster, service, image):
+def deploy(cluster, service, container, image):
     client = boto3.client("ecs")
+    container_definition = None
 
     response = get_current_task_definition(client, cluster, service)
-    # We don't handle tasks with multiple containers for now.
-    assert len(response["taskDefinition"]["containerDefinitions"]) == 1
-    container_definition = response["taskDefinition"]["containerDefinitions"][0].copy()
+
+    for old_container_definition in response["taskDefinition"]["containerDefinitions"]:
+        if old_container_definition['name'] == container:
+            container_definition = old_container_definition.copy()
+            break
+
+    if container_definition is None:
+        raise ValueError('container not found')
+
     container_definition["image"] = image
 
     with log_call("register task definition"):
